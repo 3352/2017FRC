@@ -516,12 +516,12 @@ public class Robot extends IterativeRobot implements PIDOutput
 		else if (liftMode == 1)
 		{
 			lift.changeControlMode(TalonControlMode.PercentVbus);
-    		lift.set(targetSpeed2);
+    		lift.set(1);
 		}
 		else if (liftMode == 2)
 		{
 			lift.changeControlMode(TalonControlMode.PercentVbus);
-			lift.set(1);
+			lift.set(targetSpeed2);
 		}
 
 		/************************************************************************
