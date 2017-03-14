@@ -202,11 +202,14 @@ public class Robot extends IterativeRobot implements PIDOutput
 		switch (autoSelected) {
 		case customAuto:
 			// Put custom auto code here
-			 myRobot.setSafetyEnabled(false);
-			 myRobot.drive(-0.5, 0.0);	 // drive forwards half speed
-		      Timer.delay(6);//  for 2 seconds
+		     if(autoRun == true)
+		     {
+		      myRobot.setSafetyEnabled(false);
+		      myRobot.drive(-0.5, 0.0);	 // drive forwards half speed
+		      Timer.delay(3);//  for 3 seconds
 		      myRobot.drive(0.0, 0.0);	 // stop robot
-			  autoRun = true;
+		      autoRun = true;
+		      }
 			break;
 		case defaultAuto:
 		default:
@@ -706,7 +709,7 @@ public class Robot extends IterativeRobot implements PIDOutput
 			}
 			else
 			{
-			myRobot.mecanumDrive_Cartesian(joyX, -joyY, currentRotationRate);
+			myRobot.mecanumDrive_Cartesian(joyX, -joyY, driveStick.getRawAxis(4));
 			}
 	   
 	   /************************************************************************
