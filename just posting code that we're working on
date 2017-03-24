@@ -262,7 +262,7 @@ public class Robot extends IterativeRobot implements PIDOutput
 			 		else{
 			 			myRobot.drive(0.0, 0.0);	 // stop robot
 			 			autoRun = true;
-			 		}
+			 			}
 			 		break;
 			 	case "Baseline 2": //short, (i < 150), 185 - 39 = 146 in 
 			 		if(i < 110) myRobot.drive(-0.50, 0.0);
@@ -272,22 +272,27 @@ public class Robot extends IterativeRobot implements PIDOutput
 			 		}
 			 		break;
 			 	case "Shooter":
-			 		if(i < 110) myRobot.drive(-0.50, 0.0);
-			 		else{
-			 			myRobot.drive(0.0, 0.0);
-			 			autoRun = true;
-
+			 		if(i < 35) myRobot.drive(-0.50, 0.0); // was set as 110
+			 			if(i > 250)		
+					{
 						shooter.changeControlMode(TalonControlMode.Speed);
-			    		shooter.set(targetSpeedShooter);
-			            if (! operatorStick.getRawButton(8))
-						{
+			    		shooter.set(2850);
 						if(shooter.getClosedLoopError() < 5 && shooter.getSpeed() > 1000)
 			            {
 			            	agitator.set(-0.8);
 			            }
-			 		break;
+			            else 
+			            {
+			            	agitator.set(0);
+						}
+					}
+			 		else
+			 		{
+			 			shooter.set(0);
+			 			agitator.set(0);
 			 		}
-			 }
+			 		break;
+			}
 	    }
 		else myRobot.drive(0.0, 0.0);
 	}
@@ -649,7 +654,7 @@ public class Robot extends IterativeRobot implements PIDOutput
         _sb.setLength(0);
 
 	
-    	SmartDashboard.putNumber("Displacement_X", ahrs.getDisplacementX());
+    	SmartDashboard.putNumber("Displcement_X", ahrs.getDisplacementX());
     	SmartDashboard.putNumber("Displacement_Y", ahrs.getDisplacementY());
     	
     	SmartDashboard.putNumber("angle", ahrs.getAngle());
