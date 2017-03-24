@@ -1,0 +1,757 @@
+package org.usfirst.frc.team3352.robot;
+
+import edu.wpi.first.wpilibj.IterativeRobot;
+import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
+import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
+import com.kauailabs.navx.frc.AHRS;
+import edu.wpi.first.wpilibj.CounterBase.EncodingType;
+import edu.wpi.first.wpilibj.DriverStation;
+import edu.wpi.first.wpilibj.PIDController;
+import edu.wpi.first.wpilibj.PIDOutput;
+import edu.wpi.first.wpilibj.PIDSource;
+import edu.wpi.first.wpilibj.PIDSourceType;
+import edu.wpi.first.wpilibj.Encoder;
+import edu.wpi.first.wpilibj.SPI;
+import edu.wpi.first.wpilibj.RobotDrive;
+import edu.wpi.first.wpilibj.Joystick;
+import edu.wpi.first.wpilibj.Timer;
+import edu.wpi.first.wpilibj.livewindow.LiveWindow;
+import com.ctre.CANTalon;
+import com.ctre.CANTalon.FeedbackDevice;
+import com.ctre.CANTalon.TalonControlMode;
+import edu.wpi.first.wpilibj.TalonSRX;
+import edu.wpi.first.wpilibj.CounterBase.EncodingType;
+import edu.wpi.first.wpilibj.smartdashboard.*;
+import edu.wpi.cscore.UsbCamera;
+import edu.wpi.first.wpilibj.CameraServer;
+
+//Version 2.0
+//Shooter and lift incremented, lift not working. Shooter untested.
+
+//CHANGELOG
+/*
+ * initial commit
+ */
+
+//Functions:
+/*
+ * What works:
+ * Drivetrain
+ * Shooter
+ * Lift
+ * Agitator
+ * 
+ * What doesn't work:
+ * N/A
+ * 
+ * What is untested:
+ * N/A
+ * 
+ *
+ * What Needs to be done:
+ * Auto w/ nav-x
+ * auto chooser
+ * 
+ */
+
+public class Robot extends IterativeRobot implements PIDOutput 
+{	
+		
+	/***************************************************************************** 
+	* Declarations for controllers
+    *****************************************************************************/ 
+    Joystick driveStick = new Joystick(0);      
+	Joystick operatorStick = new Joystick(1);	
+
+	/***************************************************************************** 
+	* Declarations for drivetrain
+    *****************************************************************************/ 
+
+    AHRS ahrs;
+    RobotDrive myRobot;
+    PIDController turnController;
+    double rotateToAngleRate;
+    double angle = 0;
+    boolean buttonPressed = true;
+    double deadZone = 0.10;
+    boolean slow = false;
+    static final double kP = 0.015;
+    static final double kI = 0.00;
+    static final double kD = 0.00;
+    static final double kF = 0.00;
+    static final double kToleranceDegrees = 2.0f;
+    boolean rotateToAngle = false;
+    double currentRotationRate;
+    double rotateX;
+    double joyX;
+    double joyY;
+    double heading;
+    double rotation;
+
+    // Channels for the wheels
+    CANTalon frontLeftChannel = new CANTalon(1);
+    CANTalon rearLeftChannel = new CANTalon(2);
+    CANTalon frontRightChannel = new CANTalon(3);
+    CANTalon rearRightChannel = new CANTalon(4);
+
+
+	/***************************************************************************** 
+	* Declarations for shooter & Agitator
+    *****************************************************************************/ 
+    double targetSpeedShooter = 2850; 
+    double shooterMode = 0;
+
+    //Channel for the shooter
+	CANTalon shooter = new CANTalon(5);
+	
+	//Channel for the agitator
+	CANTalon agitator = new CANTalon(6);
+	
+
+	/***************************************************************************** 
+	* Declarations for output to console window
+    *****************************************************************************/ 
+
+    StringBuilder _sb = new StringBuilder();
+	int _loops = 0;
+
+    /***************************************************************************** 
+	* Declarations for lift
+    *****************************************************************************/ 
+
+    double targetSpeedLift = 0.25;
+    double liftMode = 0;
+
+    //Channel for the lift
+	CANTalon lift = new CANTalon(7);
+
+	/***************************************************************************** 
+	* Declarations for Controller button edge sensing
+    *****************************************************************************/ 
+
+    boolean lastState1 = false;
+    boolean lastState2 = false;
+    boolean lastState5 = false;
+    boolean lastState6 = false;
+    boolean lastState4 = false;
+    boolean lastState3 = false;
+	boolean lastState9 = false;
+
+	boolean noNavx = false;
+    
+
+    /***************************************************************************** 
+	* Declarations for Autonomous
+    *****************************************************************************/ 
+    boolean autoRun = false;
+    int i = 0;
+    static SendableChooser<String> autoChooser;
+    static Object auto; 
+    
+
+	
+	
+/***************************************************************************** 
+* This function is run when the robot is first started up and should be
+* used for any initialization code.
+******************************************************************************/
+	
+	@Override
+	public void robotInit() {
+		UsbCamera camera = CameraServer.getInstance().startAutomaticCapture();
+		camera.setResolution(160, 120);
+		
+		autoChooser = new SendableChooser<String>();
+		
+		
+		shooter.setFeedbackDevice(FeedbackDevice.QuadEncoder);
+		shooter.configEncoderCodesPerRev(16);
+		shooter.setProfile(0);
+		shooter.setF(3);
+		shooter.setP(5);//Was 25, 5
+		shooter.setI(0.005);//Was .025, .005
+		shooter.setD(0);
+		shooter.configNominalOutputVoltage(+0.0f, -0.0f);
+		shooter.configPeakOutputVoltage(+12.0f, -12.0f);
+	    
+        myRobot = new RobotDrive(frontLeftChannel, rearLeftChannel, frontRightChannel, rearRightChannel);
+        //myRobot.setExpiration(0.1);
+        myRobot.setSafetyEnabled(true);
+        
+      
+        try 
+        {
+            ahrs = new AHRS(SPI.Port.kMXP); 
+        } 
+        
+        catch (RuntimeException ex ) 
+        {
+            DriverStation.reportError("Error instantiating navX MXP:  " + ex.getMessage(), true);
+        }
+        
+        turnController = new PIDController(kP, kI, kD, kF, ahrs, this);
+        turnController.setInputRange(-180.0f,  180.0f);
+        turnController.setOutputRange(-1.0, 1.0);
+        turnController.setAbsoluteTolerance(kToleranceDegrees);
+        turnController.setContinuous(true);
+        
+        LiveWindow.addActuator("DriveSystem", "RotateController", turnController);
+        
+        i = 0;
+	}
+
+//just adding this because Zach said to do so
+	public void disabledInit() {
+		autoChooser.addDefault("Gear", "Gear");
+		autoChooser.addObject("Baseline 1", "Baseline 1");
+		autoChooser.addObject("Baseline 2", "Baseline 2");
+		autoChooser.addObject("Shooter", "Shooter");
+		SmartDashboard.putData("Autonomous", autoChooser);
+	}
+
+	public void disabledPeriodic() {
+		SmartDashboard.putString("Selected Auto", autoChooser.getSelected().toString());
+	}
+/***************************************************************************** 
+* This function is run once each time the robot enters autonomous mode
+*******************************************************************************/
+	 /***************************************************************************** 
+	 * This autonomous (along with the chooser code above) shows how to select
+	 * between different autonomous modes using the dashboard. The sendable
+	 * chooser code works with the Java SmartDashboard. If you prefer the
+	 * LabVIEW Dashboard, remove all of the chooser code and uncomment the
+	 * getString line to get the auto name from the text box below the Gyro
+	 *
+	 * You can add additional auto modes by adding additional comparisons to the
+	 * switch structure below with additional strings. If using the
+	 * SendableChooser make sure to add them to the chooser code above as well.
+	 *******************************************************************************/
+
+	@Override
+	public void autonomousInit() {
+	    auto = autoChooser.getSelected();   
+		autoRun = false;
+	    frontLeftChannel.setInverted(false);
+	    rearLeftChannel.setInverted(false);
+	    System.out.println("Auton init");
+	    
+	    i = 0;
+	}
+
+/***************************************************************************** 
+* This function is called periodically during autonomous
+*******************************************************************************/
+
+	@Override
+	public void autonomousPeriodic() {
+			// Put custom auto code here */
+		System.out.println("Auton loop: " + i);
+		if (autoRun == false)
+	    {
+			 i ++;
+			 switch ((String)auto) {
+			 	case "Gear": 
+			 		if(i < 114) myRobot.drive(-0.25, 0.0); // -0.25 drive forwards half speed, (i < 84)
+			 		else{
+			 			myRobot.drive(0.0, 0.0);	 // stop robot
+			 			autoRun = true;
+			 		}
+			 		break;
+			 	case "Baseline 1": //long, (i < 168), 261 in, 197
+			 		if(i < 197) myRobot.drive(-0.50, 0.0); // -0.50 drive forwards half speed, 
+			 		else{
+			 			myRobot.drive(0.0, 0.0);	 // stop robot
+			 			autoRun = true;
+			 		}
+			 		break;
+			 	case "Baseline 2": //short, (i < 150), 185 - 39 = 146 in 
+			 		if(i < 110) myRobot.drive(-0.50, 0.0);
+			 		else{
+			 			myRobot.drive(0.0, 0.0);
+			 			autoRun = true;
+			 		}
+			 		break;
+			 	case "Shooter":
+			 		if(i < 110) myRobot.drive(-0.50, 0.0);
+			 		else{
+			 			myRobot.drive(0.0, 0.0);
+			 			autoRun = true;
+
+						shooter.changeControlMode(TalonControlMode.Speed);
+			    		shooter.set(targetSpeedShooter);
+			            if (! operatorStick.getRawButton(8))
+						{
+						if(shooter.getClosedLoopError() < 5 && shooter.getSpeed() > 1000)
+			            {
+			            	agitator.set(-0.8);
+			            }
+			 		break;
+			 		}
+			 }
+	    }
+		else myRobot.drive(0.0, 0.0);
+	}
+
+/************************************************************************
+* This function is called periodically during operator control
+*************************************************************************/
+	@Override
+	
+	public void teleopInit()
+	{
+		frontLeftChannel.setInverted(true);
+		rearLeftChannel.setInverted(true);
+	}
+	
+	public void teleopPeriodic() 
+	{   
+        /************************************************************************
+        * Check the bumper button and decrement or increment
+        * the shooter target speed when it has been pushed.
+        *************************************************************************/
+
+        if (!(liftMode == 2))
+      {
+        if (lastState5 == false)
+        {
+          	if (operatorStick.getRawButton(5))
+        	{
+        		lastState5 = true;
+        		targetSpeedShooter -= 25;
+        		if(targetSpeedShooter>3000) 
+        		{
+    			targetSpeedShooter = 3000;
+        		}
+        	}
+        }
+        else if (lastState5 == true)
+        {
+        	
+        	if (!operatorStick.getRawButton(5))
+        	{
+        		lastState5 = false;
+        	}
+        }
+      
+         if (lastState6 == false)
+        {
+        	
+        	if (operatorStick.getRawButton(6))
+        	{
+        	lastState6 = true;
+        	targetSpeedShooter += 25;
+    			if(targetSpeedShooter<0) 
+    			{
+    			targetSpeedShooter = 0;
+    			}
+        	}
+        }
+        else if (lastState6 == true)
+        {
+        	if (! operatorStick.getRawButton(6))
+        	{
+        		lastState6 = false;
+        	}
+        }
+      }
+     
+        
+        /************************************************************************
+        * Determine if the A button has been pressed and when it has
+        * set the shooter mode as follows:
+        * If currently 0 (off), set it to 1 (closed loop speed)
+        * If currently 1 (closed loop speed), set it to 0 (off).
+        *************************************************************************/
+		
+        if(lastState1 == false) 
+		{
+			if(operatorStick.getRawButton(1)) /* This is the rising edge (press) of button A */
+			{
+				lastState1 = true;
+				if(shooterMode == 0)
+				{
+					shooterMode = 1;
+				}
+				else if (shooterMode == 1)
+				{
+					shooterMode = 0;
+				}
+	        }
+		}
+		else if(lastState1 == true)
+		{
+			if (! operatorStick.getRawButton(1)) /* This is the falling edge (release) of button A */
+			{
+				lastState1 = false;
+			}
+		}
+		
+        /************************************************************************
+        * Determine if the B button has been pressed and when it has
+        * set the shooter mode as follows:
+        * If currently 0 (off), set it to open loop 2 (%Vbus)
+        * If currently 2 (%Vbus), set it to 0 (off).
+        *************************************************************************/
+		
+		if(lastState2 == false) //toggle shooter on button A (WIP)
+		{
+			if(operatorStick.getRawButton(2)) /* This is the rising edge (press) of button  B*/
+			{
+				lastState2 = true;
+					if (shooterMode == 0)
+					{
+						shooterMode = 2;
+					}
+						else if (shooterMode == 2)
+					{
+						shooterMode = 0;
+					}
+			}
+		}
+			
+		else if(lastState2 == true)
+		{
+			if (! operatorStick.getRawButton(2)) /* This is the falling edge (release) of button B */
+			{
+				lastState2 = false;
+			}
+		}
+		
+		
+        /************************************************************************
+        * Adjust the shooter motor controller based on the mode as follows:
+        * If 0 (off), set the command to 0
+        * If 1 (closed loop speed), set the command to targetSpeedShooter
+        * If 2 (%Vbus), set the command to targetSpeedShooter/3607.
+        *  Note the control mode appears to needs to be written each time for the
+        *  command to take effect. The value of 3607 adjusts the targetSpeedShooter variable 
+        *  to the required range of the %Vbus mode of +/- 1. 
+        *************************************************************************/
+		
+		if (shooterMode == 0)
+		{
+			shooter.changeControlMode(TalonControlMode.PercentVbus);
+    		shooter.set(0);
+    		agitator.set(0);
+		}
+		else if (shooterMode == 1)
+		{
+			shooter.changeControlMode(TalonControlMode.Speed);
+    		shooter.set(targetSpeedShooter);
+            if (! operatorStick.getRawButton(8))
+			{
+			if(shooter.getClosedLoopError() < 5 && shooter.getSpeed() > 1000)
+            {
+            	agitator.set(-0.8);
+            }
+            else agitator.set(0);
+			}
+			else if(operatorStick.getRawButton(8))
+			{
+			agitator.set(0.8);
+			}
+		}
+		else if (shooterMode == 2)
+		{
+			shooter.changeControlMode(TalonControlMode.PercentVbus);
+			shooter.set(targetSpeedShooter / 3607); /* divide by 3607 for PercentVbus mode */
+			if (! operatorStick.getRawButton(8))
+			{
+			agitator.set(-0.8);
+			}
+			else if(operatorStick.getRawButton(8))
+			{
+			agitator.set(0.8);
+			}
+		}
+		
+		/************************************************************************
+	        * Check the Bumper buttons to decrement or increment
+	        * the lift speed motor speed.
+	        *************************************************************************/
+
+		if(liftMode == 2) //checks if in lift hold mode
+		{
+			if (lastState5 == false) //code for increment and decrement on the lift
+	        {
+	        
+	        	if (operatorStick.getRawButton(5))
+	        	{
+	        		lastState5 = true;
+	        		targetSpeedLift -= .05;
+	        		
+	        		if(targetSpeedLift>1) 
+	        		{
+	        			targetSpeedLift = 1;
+	        		}
+	    			
+	        	}
+	        }
+	        else if (lastState5 == true)
+	        {
+	        	
+	        	if (!operatorStick.getRawButton(5))
+	        	{
+	        		lastState5 = false;
+	        	}
+	        
+	        }
+	      
+	        
+	        if (lastState6 == false)
+	        {
+	        	
+	        
+	        	if (operatorStick.getRawButton(6))
+	        	{
+	        		lastState6 = true;
+	        		targetSpeedLift += .05;
+	        		
+	    			if(targetSpeedLift<0) 
+	    			{
+	    				targetSpeedLift=0;
+	    			}
+				 
+	        	}
+	        }
+	        else if (lastState6 == true)
+	        {
+	        	if (! operatorStick.getRawButton(6))
+	        	{
+	        		lastState6 = false;
+	        	}
+	        }
+		}
+      
+        /************************************************************************
+        * Determine if the X button has been pressed and when it has
+        * set the lift mode as follows:
+        * If currently 0 (off), set it to full speed (%Vbus)
+        * If currently 2 (%Vbus), set it to 0 (off).
+        *************************************************************************/
+        if(lastState4 == false) 
+		{
+			if(operatorStick.getRawButton(4)) /* This is the rising edge (press) of button X */
+			{
+				lastState4 = true;
+				if(liftMode == 0)
+				{
+					liftMode = 1; 
+				}
+				else if (liftMode == 1)
+				{
+					liftMode = 0;
+				}
+	        }
+		}
+		else if(lastState4 == true)
+		{
+			if (! operatorStick.getRawButton(4)) /* This is the falling edge (release) of button X */
+			{
+				lastState4 = false;
+			}
+		}
+        
+        
+        /************************************************************************
+        * Determine if the Y button has been pressed and when it has
+        * set the lift mode as follows:
+        * If currently 0 (off), set it to hold position (%Vbus)
+        * If currently 1 (fulls speed), set it to hold position (%Vbus)
+        * If currently 2 (%Vbus), set it to 0 (off).
+        *************************************************************************/
+        if(lastState3 == false) 
+		{
+			if(operatorStick.getRawButton(3)) /* This is the rising edge (press) of button Y */
+			{
+				lastState3 = true;
+				if((liftMode == 0 || liftMode == 1))
+				{
+					liftMode = 2; 
+				}
+				else if (operatorStick.getRawButton(3))
+				{
+					if (liftMode == 2)
+					{
+						liftMode = 0;
+					}
+				}
+	        }
+		}
+		else if(lastState3 == true)
+		{
+			if (! operatorStick.getRawButton(3)) /* This is the falling edge (release) of button Y */
+			{
+				lastState3 = false;
+			}
+		}
+
+        /************************************************************************
+        * Adjust the lift motor controller based on the mode as follows:
+        * If 0 (off), set the command to 0
+        * If 1 (full speed lift), set the command to 1 (full speed)
+        * If 2 (hold), set the command to targetSpeedLift.
+        *************************************************************************/
+
+        if (liftMode == 0) // code for lift modes
+		{
+			lift.changeControlMode(TalonControlMode.PercentVbus);
+    		lift.set(0);
+		}
+		else if (liftMode == 1)
+		{
+			lift.changeControlMode(TalonControlMode.PercentVbus);
+    		lift.set(-1);
+		}
+		else if (liftMode == 2)
+		{
+			lift.changeControlMode(TalonControlMode.PercentVbus);
+			lift.set(-targetSpeedLift);
+		}
+
+		/************************************************************************
+        * Create a string to send to the console window for troubleshooting.
+        * Send values to the smart window for monitoring 
+        *************************************************************************/
+    
+    	double motorOutput5 = shooter.getOutputVoltage() / shooter.getBusVoltage();
+    	double motorOutput1 = frontLeftChannel.getOutputVoltage() / frontLeftChannel.getBusVoltage();
+    	double motorOutput2 = rearLeftChannel.getOutputVoltage() / rearLeftChannel.getBusVoltage();
+    	double motorOutput3 = frontRightChannel.getOutputVoltage() / frontRightChannel.getBusVoltage();
+    	double motorOutput4 = rearRightChannel.getOutputVoltage() / rearRightChannel.getBusVoltage();
+    	/* prepare line to print */
+		_sb.append("\tout:");
+		_sb.append(motorOutput5);
+        _sb.append("\tspd:");
+        _sb.append(shooter.getSpeed());
+        _sb.append("\terr:");
+        _sb.append(shooter.getClosedLoopError());
+        _sb.append("\ttrg:");
+        _sb.append(targetSpeedShooter);
+        SmartDashboard.putNumber("Target Speed1 shooter",targetSpeedShooter);
+        SmartDashboard.putNumber("Talon Command", motorOutput5);
+        SmartDashboard.putNumber("Talon Command", motorOutput1);
+        SmartDashboard.putNumber("Talon Command", motorOutput2);
+        SmartDashboard.putNumber("Talon Command", motorOutput3);
+        SmartDashboard.putNumber("Talon Command", motorOutput4);
+		SmartDashboard.putNumber("Actual Speed", shooter.getSpeed());
+		SmartDashboard.putNumber("Error", shooter.getClosedLoopError());
+		SmartDashboard.putNumber("Shooter Mode", shooterMode);
+		SmartDashboard.putNumber("lifting mode", liftMode);
+		SmartDashboard.putNumber("Target Speed2 lift",targetSpeedLift);
+		SmartDashboard.putNumber("Lift Current", lift.getOutputCurrent());
+		
+        if(++_loops >= 10) 
+        {
+        	_loops = 0;
+        	//System.out.println(_sb.toString());
+        }
+        _sb.setLength(0);
+
+	
+    	SmartDashboard.putNumber("Displacement_X", ahrs.getDisplacementX());
+    	SmartDashboard.putNumber("Displacement_Y", ahrs.getDisplacementY());
+    	
+    	SmartDashboard.putNumber("angle", ahrs.getAngle());
+    
+      
+        if ( driveStick.getRawButton(6)) // Reset the navX with right bumper button
+        {
+            ahrs.reset();
+        }
+        if ( driveStick.getRawButton(1))  // Move robot to 180 degrees
+        {
+            turnController.setSetpoint(179.9f);
+            rotateToAngle = true;
+        } 
+        else if ( driveStick.getRawButton(2)) // Move robot to right 90 degrees
+        {
+            turnController.setSetpoint(90f);
+            rotateToAngle = true;
+        }
+        else if ( driveStick.getRawButton(3)) // Move robot to 0 degrees
+        {
+            turnController.setSetpoint(-90.0f);
+            rotateToAngle = true;
+        } 
+         else if ( driveStick.getRawButton(4)) // Move robot to left 90 degrees
+        {
+            turnController.setSetpoint(0.0f);
+            rotateToAngle = true;
+        }
+         else rotateToAngle = false;
+
+        
+        if (rotateToAngle) 
+        {
+            turnController.enable();
+            currentRotationRate = rotateToAngleRate;
+        }
+        else 
+        {
+            turnController.disable();
+            rotateX = driveStick.getRawAxis(4);
+            if (Math.abs(rotateX) < deadZone) currentRotationRate = 0;
+            else currentRotationRate = rotateX;
+        }
+        
+        joyX = driveStick.getRawAxis(1);
+        joyY = driveStick.getRawAxis(0);
+        
+        if(Math.abs(joyX) < deadZone) joyX = 0;
+        
+        if(Math.abs(joyY) < deadZone) joyY = 0;
+
+        /* Use the joystick X axis for lateral movement,          */
+        /* Y axis for forward movement, and the current           */
+        /* calculated rotation rate (or joystick Z axis),         */
+        /* depending upon whether "rotate to angle" is active.    */
+		if(noNavx == false) heading = (ahrs.getAngle()-90.0);
+		else heading = 0;
+		
+		if (driveStick.getRawButton(5) == true)
+			{
+			joyX = joyX/4;
+			joyY = joyY/4;
+			currentRotationRate = currentRotationRate/4;
+			}
+
+	    try 
+	    	{
+	  			myRobot.mecanumDrive_Cartesian(joyX, -joyY, currentRotationRate, heading);
+			} 
+	        
+	    catch( RuntimeException ex ) 
+	        {
+	            DriverStation.reportError("Error communicating with drive system:  " + ex.getMessage(), true);
+	        }
+
+	
+		/************************************************************************
+		* changes modes between navX and regular mecanum
+		*************************************************************************/
+		if(lastState9 == false) 
+			{
+			if(operatorStick.getRawButton(9)) /* This is the rising edge (press) of left stick button */
+				{
+				lastState9 = true;
+				if(noNavx == false)	noNavx = true; 
+				else noNavx = false;
+				}
+			}
+		else
+			{
+			if (! operatorStick.getRawButton(9)) lastState9 = false; /* This is the falling edge (release) of left stick button */
+			}
+        Timer.delay(0.005);		// wait for a motor update time
+    
+	}
+
+	@Override
+	/* This function is invoked periodically by the PID Controller, */
+	/* based upon navX MXP yaw angle input and PID Coefficients.    */
+	public void pidWrite(double output) 
+	{
+	rotateToAngleRate = output;
+	}	
+}
