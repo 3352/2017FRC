@@ -24,6 +24,7 @@ import edu.wpi.first.wpilibj.CounterBase.EncodingType;
 import edu.wpi.first.wpilibj.smartdashboard.*;
 import edu.wpi.cscore.UsbCamera;
 import edu.wpi.first.wpilibj.CameraServer;
+import edu.wpi.first.wpilibj.AnalogInput;
 
 //Version 2.0
 //Shooter and lift incremented, lift not working. Shooter untested.
@@ -40,17 +41,16 @@ import edu.wpi.first.wpilibj.CameraServer;
  * Shooter
  * Lift
  * Agitator
- * Auto w/ nav-x: baseline (long, short), shooter, gear
- 
+ * Auto - baseline (long, short), shooter, and gear
+ * 
  * What doesn't work:
  * N/A
- 
- * What is untested:
- * N/A
- 
- * What Needs to be done:
- * Sensor for distance
  * 
+ * What is untested:
+ * Sensor for gear distance
+ *
+ * What Needs to be done:
+ * N/A
  */
 
 public class Robot extends IterativeRobot implements PIDOutput 
@@ -86,7 +86,13 @@ public class Robot extends IterativeRobot implements PIDOutput
     double joyY;
     double heading;
     double rotation;
+    double distance;
+    double scale;
+    boolean inRange;
 
+    AnalogInput ultrasonic = new AnalogInput(0);
+    AnalogInput supply = new AnalogInput(1);
+    
     // Channels for the wheels
     CANTalon frontLeftChannel = new CANTalon(1);
     CANTalon rearLeftChannel = new CANTalon(2);
@@ -213,6 +219,14 @@ public class Robot extends IterativeRobot implements PIDOutput
 
 	public void disabledPeriodic() {
 		SmartDashboard.putString("Selected Auto", autoChooser.getSelected().toString());
+		scale=supply.getAverageVoltage();
+		if(scale<3.3) scale=5;
+		distance=ultrasonic.getAverageVoltage()/(scale/512);
+		if(distance>7&distance<9) inRange=true;
+		else inRange=false;
+		SmartDashboard.putNumber("distance", distance);
+		SmartDashboard.putNumber("scale", scale);
+		SmartDashboard.putBoolean("In Range", inRange);
 	}
 /***************************************************************************** 
 * This function is run once each time the robot enters autonomous mode
@@ -413,7 +427,15 @@ public class Robot extends IterativeRobot implements PIDOutput
         * Check the bumper button and decrement or increment
         * the shooter target speed when it has been pushed.
         *************************************************************************/
-
+		scale=supply.getAverageVoltage();
+		if(scale<3.3) scale=5;
+		distance=ultrasonic.getAverageVoltage()/(scale/512);
+		if(distance>7&distance<9) inRange=true;
+		else inRange=false;
+		SmartDashboard.putNumber("distance", distance);
+		SmartDashboard.putNumber("scale", scale);
+		SmartDashboard.putBoolean("In Range", inRange);
+		
         if (!(liftMode == 2))
       {
         if (lastState5 == false)
