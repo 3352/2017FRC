@@ -47,6 +47,7 @@ import edu.wpi.first.wpilibj.AnalogInput;
  * N/A
  * 
  * What is untested:
+ * Sensor for gear distance
  * 
  * What Needs to be done:
  * N/A
@@ -174,6 +175,9 @@ public class Robot extends IterativeRobot implements PIDOutput
 		autoChooser.addObject("Shooter", 3);
 		autoChooser.addObject("Left Side Gear", 4);
 		autoChooser.addObject("Right Side Gear", 5);
+		autoChooser.addObject("Red Alliance Shooter", 6);
+		autoChooser.addObject("Blue Alliance Shooter", 7);
+		
 		SmartDashboard.putData("Autonomous Chooser", autoChooser);
 		
 		shooter.setFeedbackDevice(FeedbackDevice.QuadEncoder);
@@ -225,8 +229,8 @@ public class Robot extends IterativeRobot implements PIDOutput
 		distance=ultrasonic.getAverageVoltage()/(scale/512);
 		if(distance>7&distance<9) inRange=true;
 		else inRange=false;
-		SmartDashboard.putNumber("distance", distance);
-		SmartDashboard.putNumber("scale", scale);
+/*		SmartDashboard.putNumber("distance", distance);
+		SmartDashboard.putNumber("scale", scale);  */
 		SmartDashboard.putBoolean("In Range", inRange);
 	}
 /***************************************************************************** 
@@ -491,6 +495,106 @@ public class Robot extends IterativeRobot implements PIDOutput
 	 				autoRun = true;
 			 		}
 			 		break;
+			 	case 6: // Red Alliance Shooter and Side Gear
+			 		if(i < 500)		
+		 			{
+					shooter.changeControlMode(TalonControlMode.Speed);
+		    		shooter.set(2850);
+					if(shooter.getClosedLoopError() < 5 && shooter.getSpeed() > 1000)
+		            	{
+		            	agitator.set(-0.8);
+		            	}
+		            else 
+		            	{
+		            	agitator.set(0);
+		            	}
+		 			}
+		 		else if(i < 575)
+		 		{
+//		 			myRobot.drive(-0.50, 0.0);
+					shooter.changeControlMode(TalonControlMode.PercentVbus);
+		 			shooter.set(0);
+		 			agitator.set(0);
+
+		            turnController.setSetpoint(-30.0f);
+		            turnController.enable();
+		            currentRotationRate = rotateToAngleRate;
+		 			
+		 			try 
+			    	{
+			  			myRobot.mecanumDrive_Cartesian(-0.25, 0, currentRotationRate, ahrs.getAngle()-90.0);
+					} 
+			        
+			    catch( RuntimeException ex ) 
+			        {
+			            DriverStation.reportError("Error communicating with drive system:  " + ex.getMessage(), true);
+			        }
+		 		}
+		 		else if (i < 585) //Drives at 30 degrees
+		 		{
+//		 		turnController.setSetpoint(60.0f);
+//		        turnController.enable();
+	 			myRobot.mecanumDrive_Cartesian(-0.25, -0.14, 0, ahrs.getAngle()-90.0); //(-0.3, -0.55)
+			    turnController.disable();
+//	 			myRobot.drive(-0.3, 0.0);	 // Drive straight
+//	 			myRobot.tankDrive(-0.3, -0.3);
+		 		}
+		 		else
+		 		{
+		 			myRobot.drive(0, 0);
+		 			autoRun = true;
+		 		}
+		 		break;
+			 case 7: // Blue Alliance Shooter and Side Gear
+			 		if(i < 500)		
+		 			{
+					shooter.changeControlMode(TalonControlMode.Speed);
+		    		shooter.set(2850);
+					if(shooter.getClosedLoopError() < 5 && shooter.getSpeed() > 1000)
+		            	{
+		            	agitator.set(-0.8);
+		            	}
+		            else 
+		            	{
+		            	agitator.set(0);
+		            	}
+		 			}
+		 		else if(i < 575)
+		 		{
+//		 			myRobot.drive(-0.50, 0.0);
+					shooter.changeControlMode(TalonControlMode.PercentVbus);
+		 			shooter.set(0);
+		 			agitator.set(0);
+
+		            turnController.setSetpoint(30.0f);
+		            turnController.enable();
+		            currentRotationRate = rotateToAngleRate;
+		 			
+		 			try 
+			    	{
+			  			myRobot.mecanumDrive_Cartesian(-0.25, 0, currentRotationRate, ahrs.getAngle()-90.0);
+					} 
+			        
+			    catch( RuntimeException ex ) 
+			        {
+			            DriverStation.reportError("Error communicating with drive system:  " + ex.getMessage(), true);
+			        }
+		 		}
+		 		else if (i < 585) //Drives at 30 degrees
+		 		{
+//		 		turnController.setSetpoint(60.0f);
+//		        turnController.enable();
+	 			myRobot.mecanumDrive_Cartesian(-0.25, -0.14, 0, ahrs.getAngle()-90.0); //(-0.3, -0.55)
+			    turnController.disable();
+//	 			myRobot.drive(-0.3, 0.0);	 // Drive straight
+//	 			myRobot.tankDrive(-0.3, -0.3);
+		 		}
+		 		else
+		 		{
+		 			myRobot.drive(0, 0);
+		 			autoRun = true;
+		 		}
+		 		break;
 			 }
 	    }
 		else myRobot.drive(0.0, 0.0);
@@ -518,8 +622,8 @@ public class Robot extends IterativeRobot implements PIDOutput
 		distance=ultrasonic.getAverageVoltage()/(scale/512);
 		if(distance>7&distance<9) inRange=true;
 		else inRange=false;
-		SmartDashboard.putNumber("distance", distance);
-		SmartDashboard.putNumber("scale", scale);
+//		SmartDashboard.putNumber("distance", distance);
+//		SmartDashboard.putNumber("scale", scale);
 		SmartDashboard.putBoolean("In Range", inRange);
 		
         if (!(liftMode == 2))
@@ -832,7 +936,7 @@ public class Robot extends IterativeRobot implements PIDOutput
     	double motorOutput3 = frontRightChannel.getOutputVoltage() / frontRightChannel.getBusVoltage();
     	double motorOutput4 = rearRightChannel.getOutputVoltage() / rearRightChannel.getBusVoltage();
     	/* prepare line to print */
-		_sb.append("\tout:");
+/*		_sb.append("\tout:");
 		_sb.append(motorOutput5);
         _sb.append("\tspd:");
         _sb.append(shooter.getSpeed());
@@ -841,19 +945,19 @@ public class Robot extends IterativeRobot implements PIDOutput
         _sb.append("\ttrg:");
         _sb.append(targetSpeedShooter);
         SmartDashboard.putNumber("Target Speed1 shooter",targetSpeedShooter);
-/*        SmartDashboard.putNumber("Talon Command", motorOutput5);
+        SmartDashboard.putNumber("Talon Command", motorOutput5);
         SmartDashboard.putNumber("Talon Command", motorOutput1);
         SmartDashboard.putNumber("Talon Command", motorOutput2);
         SmartDashboard.putNumber("Talon Command", motorOutput3); */
-        SmartDashboard.putNumber("Talon Command", motorOutput4);
+//      SmartDashboard.putNumber("Talon Command", motorOutput4);
 		SmartDashboard.putNumber("Actual Speed", shooter.getSpeed());
-		SmartDashboard.putNumber("Error", shooter.getClosedLoopError());
+//		SmartDashboard.putNumber("Error", shooter.getClosedLoopError());
 		SmartDashboard.putNumber("Shooter Mode", shooterMode);
 		SmartDashboard.putNumber("lifting mode", liftMode);
 		SmartDashboard.putNumber("Target Speed2 lift",targetSpeedLift);
 		SmartDashboard.putNumber("Lift Current", lift.getOutputCurrent());
 		
-        if(++_loops >= 10) 
+/*        if(++_loops >= 10) 
         {
         	_loops = 0;
         	//System.out.println(_sb.toString());
@@ -863,7 +967,7 @@ public class Robot extends IterativeRobot implements PIDOutput
 	
     	SmartDashboard.putNumber("Displcement_X", ahrs.getDisplacementX());
     	SmartDashboard.putNumber("Displacement_Y", ahrs.getDisplacementY());
-    	
+*/    	
     	SmartDashboard.putNumber("angle", ahrs.getAngle());
     
       
